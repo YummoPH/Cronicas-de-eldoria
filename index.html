@@ -174,7 +174,18 @@ button,.action,#pause,#toastBtn,.upgrade{touch-action:manipulation;-webkit-tap-h
 <div id="toast"><div id="toastCard"><h2 id="toastTitle">Crónicas de Eldoria</h2><p id="toastText">Sobrevive 50 minutos y derrota a seis jefes: Araña (3), Minotauro (6), Kraken (12), Leviatán (20), Dragón Gigante (30) y Fénix (50).</p><button id="toastBtn">Continuar</button></div></div>
 <div id="levelup"><div style="width:min(350px,100%);text-align:center"><h2>¡Subes de nivel!</h2><p id="levelupText">Elige una habilidad para tu héroe</p><div id="cards"></div></div></div>
 <div id="hint">Joystick para moverte · Ataca automáticamente · Elige hasta 4 habilidades</div></div>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js"></script>
 <script>
+const firebaseConfig = {
+  apiKey: "AIzaSyB40G_8zDy-kSkV0T5g504c9kCBt_xrd1o",
+  authDomain: "cronicas-de-eldoria-f521c.firebaseapp.com",
+  projectId: "cronicas-de-eldoria-f521c",
+  storageBucket: "cronicas-de-eldoria-f521c.firebasestorage.app",
+  messagingSenderId: "767345974876",
+  appId: "1:767345974876:web:c20d7d5915147ca9a15099"
+};
+firebase.initializeApp(firebaseConfig);
 (()=>{'use strict';
 const cv=document.getElementById('c'),ctx=cv.getContext('2d',{alpha:false}),$=id=>document.getElementById(id);
 const VW=360,VH=640,WW=2700,WH=3900;cv.width=VW;cv.height=VH;ctx.imageSmoothingEnabled=false;
@@ -967,8 +978,10 @@ function startOrResume(){if(!currentAccount){setAuthStatus('Crea una cuenta o in
 $('playGame').onclick=startOrResume;$('authContinue').onclick=startOrResume;$('tabLogin').onclick=()=>showAuthMode('login');$('tabRegister').onclick=()=>showAuthMode('register');
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();setAuthStatus('Comprobando cuenta…');try{const identity=$('loginIdentity').value.trim().toLowerCase(),password=$('loginPassword').value,accounts=readAccounts();const entry=Object.entries(accounts).find(([k,a])=>k===identity||a.username.toLowerCase()===identity||a.email.toLowerCase()===identity);if(!entry){setAuthStatus('No se encontró esa cuenta en este navegador.');return}const [key,a]=entry,hash=await passwordHash(password,a.salt);if(hash!==a.passwordHash){setAuthStatus('Contraseña incorrecta.');return}currentAccount={username:a.username,email:a.email,key};localStorage.setItem(SESSION_KEY,key);refreshAccountUI();setAuthStatus('Sesión iniciada. ¡Bienvenido, '+a.username+'!')}catch(err){setAuthStatus(err.message||'No se pudo iniciar sesión.')}});
 $('registerForm').addEventListener('submit',async e=>{e.preventDefault();const username=$('registerUsername').value.trim(),email=$('registerEmail').value.trim().toLowerCase(),password=$('registerPassword').value;if(!/^[A-Za-z0-9_]{3,20}$/.test(username)){setAuthStatus('Usa 3–20 caracteres: letras, números o guion bajo.');return}if(password.length<8){setAuthStatus('La contraseña debe tener al menos 8 caracteres.');return}setAuthStatus('Creando cuenta…');try{const accounts=readAccounts(),key=username.toLowerCase();if(accounts[key]||Object.values(accounts).some(a=>a.email.toLowerCase()===email)){setAuthStatus('Ese usuario o correo ya está registrado en este navegador.');return}const salt=Array.from(crypto.getRandomValues(new Uint8Array(16))).map(b=>b.toString(16).padStart(2,'0')).join(''),passwordHashValue=await passwordHash(password,salt);accounts[key]={username,email,salt,passwordHash:passwordHashValue,createdAt:new Date().toISOString()};localStorage.setItem(ACCOUNT_KEY,JSON.stringify(accounts));localStorage.setItem(SESSION_KEY,key);currentAccount={username,email,key};refreshAccountUI();setAuthStatus('Cuenta creada. ¡Bienvenido a Eldoria!')}catch(err){setAuthStatus(err.message||'No se pudo crear la cuenta.')}});
-$('authLogout').onclick=()=>{currentAccount=null;localStorage.removeItem(SESSION_KEY);refreshAccountUI();setAuthStatus('Sesión cerrada.');};
-$('gmailLogin').onclick=()=>setAuthStatus('El acceso real con Google necesita configurar OAuth y un servidor; no está activado en este archivo local.');
+$('authLogout').onclick=async()=>{try{await firebase.auth().signOut()}catch(e){}currentAccount=null;localStorage.removeItem(SESSION_KEY);refreshAccountUI();setAuthStatus('Sesión cerrada.');};
+$('gmailLogin').onclick=async()=>{try{setAuthStatus('Abriendo Google…');const provider=new firebase.auth.GoogleAuthProvider();await firebase.auth().signInWithRedirect(provider)}catch(err){setAuthStatus(err.message||'No se pudo abrir Google.')}};
+firebase.auth().getRedirectResult().then(result=>{if(result&&result.user){const u=result.user;currentAccount={username:u.displayName||u.email||'Aventurero',email:u.email||'',key:'google_'+u.uid,uid:u.uid,provider:'google'};localStorage.removeItem(SESSION_KEY);refreshAccountUI();setAuthStatus('Sesión iniciada con Google. ¡Bienvenido a Eldoria!')}}).catch(err=>setAuthStatus(err.message||'No se pudo completar el acceso con Google.'));
+firebase.auth().onAuthStateChanged(user=>{if(user){currentAccount={username:user.displayName||user.email||'Aventurero',email:user.email||'',key:'google_'+user.uid,uid:user.uid,provider:'google'};localStorage.removeItem(SESSION_KEY);refreshAccountUI()}});
 $('multiplayerBtn').onclick=()=>{if(!currentAccount){setAuthStatus('Inicia sesión para buscar jugadores.');$('accountPanel').scrollIntoView({behavior:'smooth',block:'center'});return}$('multiPanel').style.display='block';$('multiPanel').scrollIntoView({behavior:'smooth',block:'center'});$('multiStatus').textContent=''};
 $('closeMulti').onclick=()=>$('multiPanel').style.display='none';$('searchPlayer').onclick=()=>{if(!currentAccount){$('multiStatus').textContent='Inicia sesión primero.';return}const q=$('multiUsername').value.trim().toLowerCase();if(!q){$('multiStatus').textContent='Escribe un nombre de usuario.';return}const a=Object.values(readAccounts()).find(x=>x.username.toLowerCase()===q);$('multiStatus').textContent=!a?'No se encontró ese usuario en este navegador.':a.username.toLowerCase()===currentAccount.username.toLowerCase()?'Ese es tu propio usuario.':('Encontrado: '+a.username+'. La conexión online aún requiere servidor multijugador.')};
 restoreSession();refreshAccountUI();showAuthMode('login');
