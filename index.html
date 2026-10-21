@@ -1378,12 +1378,24 @@ async function beginSelectedMode(mode){audioContext();
   mainMenu.style.display='none';
   if(dead){location.reload();return;}
   paused=false;running=true;last=0;ensureGameMusic();
-  if(mode==='multiplayer'){
-    toast('Modo multijugador','La interfaz está lista. Para jugar en línea con otras personas hace falta conectar un servidor multijugador.','Continuar',()=>{});
-  }
+  // Online multiplayer is opened from the mode-selection menu; never start a solo run for it.
 }
 $('modeSolo').onclick=()=>beginSelectedMode('solo');
-$('modeMultiplayer').onclick=()=>beginSelectedMode('multiplayer');
+$('modeMultiplayer').onclick=()=>{
+  // Open the online lobby instead of starting a solo run with a placeholder toast.
+  mainMenu.classList.remove('mode-select-open');
+  $('modeSelectPanel').style.display='none';
+  $('accountPanel').style.display='none';
+  $('menuSubpage').style.display='none';
+  if(!currentAccount || !currentAccount.google || !eldoriaAuth.currentUser){
+    openAccountPanel('login');
+    setAuthStatus('Inicia sesión con Google para crear o unirte a una sala en línea.');
+    return;
+  }
+  $('multiPanel').style.display='block';
+  $('multiPanel').scrollIntoView({behavior:'smooth',block:'center'});
+  showRoomStatus('Crea una sala o introduce el código de un amigo.');
+};
 $('authContinue').onclick=()=>{if(mainMenu.classList.contains('mode-select-open')){startOrResume();return}openModeSelect();};$('tabLogin').onclick=()=>showAuthMode('login');$('tabRegister').onclick=()=>showAuthMode('register');
 function closeAccountPanel(){ $('accountPanel').style.display='none'; $('authStatus').textContent=''; mainMenu.classList.remove('account-panel-open','mode-select-open'); $('modeSelectPanel').style.display='none'; }
 $('authBackBtn').onclick=closeAccountPanel;
